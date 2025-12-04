@@ -1,0 +1,512 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Employee Office Status Dashboard</title>
+    <style>
+        :root {
+            --color-primary: #007bff;
+            --color-in-office: #28a745; /* Green */
+            --color-out-of-office: #dc3545; /* Red */
+            --color-remote: #ffc107; /* Yellow */
+            --color-text: #333;
+            --color-bg-light: #f8f9fa;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: var(--color-bg-light);
+            color: var(--color-text);
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: auto;
+        }
+
+        h1 {
+            text-align: center;
+            color: var(--color-primary);
+            margin-bottom: 10px;
+        }
+
+        #current-date {
+            text-align: center;
+            font-size: 1.2em;
+            color: #555;
+            margin-bottom: 30px;
+            font-weight: 600;
+        }
+
+        /* --- Summary Card Styles --- */
+        #summary-bar {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 20px;
+            margin-bottom: 30px;
+            padding: 15px;
+            background-color: #e9ecef;
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.05);
+        }
+
+        .summary-card {
+            text-align: center;
+            padding: 10px;
+            border-radius: 6px;
+            color: white;
+            font-weight: bold;
+        }
+
+        .summary-card h3 {
+            margin: 0 0 5px 0;
+            font-size: 1.1em;
+        }
+
+        .summary-card p {
+            margin: 0;
+            font-size: 2em;
+        }
+
+        /* Summary Colors (Matching Status Colors) */
+        .summary-in-office { background-color: var(--color-in-office); }
+        .summary-remote { background-color: var(--color-remote); }
+        .summary-out-of-office { background-color: var(--color-out-of-office); }
+
+        /* --- Controls and Management Styles --- */
+        .controls {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            justify-content: center;
+            align-items: center;
+            margin-bottom: 30px;
+            padding: 15px;
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+        }
+        
+        .management-controls {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .management-controls button {
+            padding: 10px 20px;
+            background-color: #20c997; 
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: background-color 0.3s;
+        }
+        
+        .management-controls button:hover {
+            background-color: #1aae88;
+        }
+
+        .controls select {
+            padding: 10px;
+            border-radius: 5px;
+            border: 1px solid #ccc;
+            min-width: 150px;
+            cursor: pointer;
+            transition: border-color 0.3s;
+        }
+
+        /* --- Employee List and Card Styles (Existing) --- */
+        #employee-list {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+            gap: 20px;
+        }
+
+        .employee-card {
+            background-color: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            transition: transform 0.3s, box-shadow 0.3s;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            position: relative; 
+        }
+
+        .employee-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 16px rgba(0, 0, 0, 0.15);
+        }
+
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+        }
+
+        .editable-name, .editable-department {
+            outline: none;
+            border: none;
+            border-bottom: 2px solid transparent;
+            transition: border-bottom-color 0.3s;
+            width: 100%;
+            box-sizing: border-box; 
+            background: transparent;
+        }
+        
+        .editable-name {
+            font-weight: bold;
+            font-size: 1.3em;
+            margin-bottom: 3px;
+        }
+        
+        .editable-department {
+            color: #666;
+            font-size: 0.9em;
+            padding: 2px 0; 
+        }
+        
+        .editable-name:focus, .editable-department:focus {
+            border-bottom-color: var(--color-primary);
+        }
+
+        .status-badge {
+            padding: 8px 12px;
+            border-radius: 20px;
+            font-weight: bold;
+            color: white;
+            text-transform: uppercase;
+            font-size: 0.9em;
+            min-width: 100px;
+            text-align: center;
+        }
+
+        .status-InOffice { background-color: var(--color-in-office); }
+        .status-OutOfOffice { background-color: var(--color-out-of-office); }
+        .status-Remote { background-color: var(--color-remote); }
+
+        .status-button {
+            padding: 8px 15px;
+            background-color: var(--color-primary);
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: background-color 0.3s;
+            align-self: flex-start; 
+        }
+
+        .status-button:hover {
+            background-color: #0056b3;
+        }
+        
+        .delete-button {
+            position: absolute;
+            top: 5px;
+            right: 5px;
+            background: none;
+            border: none;
+            color: #dc3545;
+            font-size: 1.2em;
+            cursor: pointer;
+            padding: 5px;
+            line-height: 1;
+        }
+
+        /* --- Responsive Adjustments --- */
+        @media (max-width: 600px) {
+            body { padding: 10px; }
+            .controls { flex-direction: column; align-items: stretch; }
+            .management-controls { flex-direction: column; }
+            .management-controls button { width: 100%; }
+            #summary-bar { grid-template-columns: 1fr; } /* Stack summary cards on mobile */
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h1>Office Status Dashboard 🏢</h1>
+        <div id="current-date"></div>
+        
+        <div class="management-controls">
+            <button onclick="addEmployee()">➕ Add New Member</button>
+        </div>
+        
+        <div id="summary-bar">
+            <div id="summary-in-office" class="summary-card summary-in-office">
+                <h3>IN OFFICE</h3>
+                <p>0</p>
+            </div>
+            <div id="summary-remote" class="summary-card summary-remote">
+                <h3>REMOTE</h3>
+                <p>0</p>
+            </div>
+            <div id="summary-out-of-office" class="summary-card summary-out-of-office">
+                <h3>OUT OF OFFICE</h3>
+                <p>0</p>
+            </div>
+        </div>
+        <div class="controls">
+            <div>
+                <label for="filter-status">Filter by Status:</label>
+                <select id="filter-status" onchange="filterEmployees()">
+                    <option value="all">All Statuses</option>
+                    <option value="InOffice">In Office</option>
+                    <option value="OutOfOffice">Out of Office</option>
+                    <option value="Remote">Remote</option>
+                </select>
+            </div>
+            <div>
+                <label for="sort-by">Sort by:</label>
+                <select id="sort-by" onchange="sortEmployees()">
+                    <option value="nameAsc">Name (A-Z)</option>
+                    <option value="nameDesc">Name (Z-A)</option>
+                    <option value="statusAsc">Status</option>
+                </select>
+            </div>
+        </div>
+
+        <div id="employee-list">
+            </div>
+    </div>
+
+    <script>
+        // --- DATA AND UTILITY CONSTANTS ---
+        const STATUS_OPTIONS = ["InOffice", "Remote", "OutOfOffice"];
+        const STORAGE_KEY_EMPLOYEES = 'employeeStatusData';
+        const STORAGE_KEY_LAST_RESET = 'lastResetDate';
+
+        const DEFAULT_EMPLOYEES = [
+            { id: 1, name: "Alice Johnson", status: "OutOfOffice", department: "Lead Developer" },
+            { id: 2, name: "Bob Smith", status: "OutOfOffice", department: "Marketing Manager" },
+        ];
+
+        let employees = []; 
+        let currentEmployeeList = []; 
+
+        // --- LOCAL STORAGE HANDLING ---
+
+        function loadEmployees() {
+            const storedData = localStorage.getItem(STORAGE_KEY_EMPLOYEES);
+            if (storedData) {
+                employees = JSON.parse(storedData);
+            } else {
+                employees = [...DEFAULT_EMPLOYEES];
+                saveEmployees();
+            }
+            currentEmployeeList = [...employees];
+        }
+
+        function saveEmployees() {
+            localStorage.setItem(STORAGE_KEY_EMPLOYEES, JSON.stringify(employees));
+        }
+
+        // --- NEW: SUMMARY FUNCTION ---
+
+        function updateSummary() {
+            const counts = employees.reduce((acc, employee) => {
+                if (acc[employee.status]) {
+                    acc[employee.status]++;
+                } else {
+                    acc[employee.status] = 1;
+                }
+                return acc;
+            }, { InOffice: 0, Remote: 0, OutOfOffice: 0 }); // Initialize counts to 0
+
+            document.querySelector('#summary-in-office p').textContent = counts.InOffice;
+            document.querySelector('#summary-remote p').textContent = counts.Remote;
+            document.querySelector('#summary-out-of-office p').textContent = counts.OutOfOffice;
+        }
+
+        // --- MEMBER MANAGEMENT FUNCTIONS ---
+        
+        function generateId() {
+            const maxId = employees.reduce((max, emp) => (emp.id > max ? emp.id : max), 0);
+            return maxId + 1;
+        }
+
+        window.addEmployee = function() {
+            const newName = prompt("Enter the name of the new employee:", "New Member");
+            if (newName === null || newName.trim() === "") return;
+
+            const newEmployee = {
+                id: generateId(),
+                name: newName.trim(),
+                status: "OutOfOffice",
+                department: "Position/Role"
+            };
+
+            employees.push(newEmployee);
+            saveEmployees();
+            filterEmployees(); 
+        }
+
+        window.deleteEmployee = function(employeeId) {
+            if (!confirm("Are you sure you want to delete this member?")) return;
+
+            employees = employees.filter(emp => emp.id !== employeeId);
+            saveEmployees();
+            filterEmployees();
+        }
+
+        window.updateProperty = function(employeeId, inputElement, property) {
+            const newValue = inputElement.value.trim();
+            const employee = employees.find(emp => emp.id === employeeId);
+            
+            if (employee) {
+                if (newValue === "") {
+                    inputElement.value = employee[property];
+                    return;
+                }
+                
+                employee[property] = newValue;
+                saveEmployees();
+                filterEmployees(false); 
+            }
+        }
+
+        // --- DATE AND RESET LOGIC ---
+
+        function checkAndResetStatus() {
+            const today = new Date().toDateString();
+            const lastReset = localStorage.getItem(STORAGE_KEY_LAST_RESET);
+
+            if (!lastReset || new Date(lastReset).toDateString() !== today) {
+                employees.forEach(emp => {
+                    emp.status = "OutOfOffice";
+                });
+                
+                localStorage.setItem(STORAGE_KEY_LAST_RESET, today);
+                saveEmployees();
+                loadEmployees(); 
+            }
+        }
+
+        function displayDate() {
+            const dateElement = document.getElementById('current-date');
+            const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+            dateElement.textContent = new Date().toLocaleDateString(undefined, options);
+        }
+
+        // --- CORE FUNCTIONALITY ---
+
+        function renderEmployees() {
+            const listContainer = document.getElementById('employee-list');
+            listContainer.innerHTML = ''; 
+
+            currentEmployeeList.forEach(employee => {
+                const card = document.createElement('div');
+                card.className = 'employee-card';
+                card.setAttribute('data-id', employee.id);
+
+                const formattedStatus = employee.status.replace(/([A-Z])/g, ' $1').trim();
+
+                card.innerHTML = `
+                    <button class="delete-button" onclick="deleteEmployee(${employee.id})" title="Delete Member">
+                        &times;
+                    </button>
+                    <div class="card-header">
+                        <div class="employee-info">
+                            <input type="text" 
+                                class="editable-name" 
+                                value="${employee.name}" 
+                                onblur="updateProperty(${employee.id}, this, 'name')" 
+                                onkeydown="if(event.key === 'Enter') this.blur()"
+                            />
+                            <input type="text" 
+                                class="editable-department" 
+                                value="${employee.department}" 
+                                onblur="updateProperty(${employee.id}, this, 'department')" 
+                                onkeydown="if(event.key === 'Enter') this.blur()"
+                            />
+                        </div>
+                        <div class="status-badge status-${employee.status}">
+                            ${formattedStatus}
+                        </div>
+                    </div>
+                    <button class="status-button" onclick="cycleStatus(${employee.id})">
+                        Change Status
+                    </button>
+                `;
+
+                listContainer.appendChild(card);
+            });
+            
+            // CRITICAL STEP: Update summary whenever the list is rendered
+            updateSummary();
+        }
+
+        window.cycleStatus = function(employeeId) {
+            const employeeIndex = employees.findIndex(emp => emp.id === employeeId);
+            if (employeeIndex === -1) return;
+
+            const currentStatus = employees[employeeIndex].status;
+            const currentIndex = STATUS_OPTIONS.indexOf(currentStatus);
+            const nextIndex = (currentIndex + 1) % STATUS_OPTIONS.length;
+            const newStatus = STATUS_OPTIONS[nextIndex];
+
+            employees[employeeIndex].status = newStatus;
+            saveEmployees();
+
+            const currentListIndex = currentEmployeeList.findIndex(emp => emp.id === employeeId);
+            if (currentListIndex !== -1) {
+                currentEmployeeList[currentListIndex].status = newStatus;
+            }
+
+            renderEmployees();
+        }
+
+        function filterEmployees(reSort = true) {
+            const filterValue = document.getElementById('filter-status').value;
+            currentEmployeeList = [...employees];
+
+            if (filterValue !== 'all') {
+                currentEmployeeList = currentEmployeeList.filter(emp => emp.status === filterValue);
+            }
+            if (reSort) {
+                sortEmployees(false);
+            } else {
+                renderEmployees();
+            }
+        }
+
+        function sortEmployees(resetFilter = true) {
+            const sortValue = document.getElementById('sort-by').value;
+
+            if (resetFilter) {
+                filterEmployees(false);
+            }
+
+            currentEmployeeList.sort((a, b) => {
+                switch (sortValue) {
+                    case 'nameAsc': return a.name.localeCompare(b.name);
+                    case 'nameDesc': return b.name.localeCompare(a.name);
+                    case 'statusAsc':
+                        if (a.status === b.status) { return a.name.localeCompare(b.name); }
+                        return a.status.localeCompare(b.status);
+                    default: return 0;
+                }
+            });
+
+            renderEmployees();
+        }
+
+        // --- INITIALIZATION ---
+        document.addEventListener('DOMContentLoaded', () => {
+            displayDate();
+            loadEmployees(); 
+            checkAndResetStatus(); 
+            filterEmployees(); 
+        });
+    </script>
+</body>
+</html>
