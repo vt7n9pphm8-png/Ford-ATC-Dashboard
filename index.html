@@ -4,6 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Employee Office Status Dashboard</title>
+
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
+
     <style>
         :root {
             --color-primary: #007bff;
@@ -276,263 +280,258 @@
         </div>
 
         <div id="employee-list">
-            </div>
+        </div>
     </div>
 
     <script>
-<script>
-    // 1. Firebase SDK Imports (These are assumed to be in the <head> section, V8 syntax)
-    // <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
-    // <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
+        // --- DATA AND UTILITY CONSTANTS ---
+        const STATUS_OPTIONS = ["InOffice", "Remote", "OutOfOffice"];
+        const STORAGE_KEY_LAST_RESET = 'lastResetDate'; 
 
-    // --- DATA AND UTILITY CONSTANTS ---
-    const STATUS_OPTIONS = ["InOffice", "Remote", "OutOfOffice"];
-    const STORAGE_KEY_LAST_RESET = 'lastResetDate'; 
-
-    // --- 2. FIREBASE CONFIGURATION (USING YOUR PROVIDED KEYS) ---
-    const firebaseConfig = {
-        apiKey: "AIzaSyAunAvViQgdP9M4tOIREWEIyw7unarsbzM",
-        authDomain: "ford-dashboard-fbf4f.firebaseapp.com",
-        databaseURL: "https://ford-dashboard-fbf4f-default-rtdb.firebaseio.com", // ADDED default-rtdb for Realtime Database
-        projectId: "ford-dashboard-fbf4f",
-        storageBucket: "ford-dashboard-fbf4f.firebasestorage.app",
-        messagingSenderId: "1028394263264",
-        appId: "1:1028394263264:web:775d863a513edaade82685",
-        // measurementId: "G-MD98SR0FX0" // Analytics is not required for core function
-    };
-
-    // Initialize Firebase (V8 syntax for basic script blocks)
-    firebase.initializeApp(firebaseConfig);
-    const database = firebase.database();
-    const employeesRef = database.ref('employees'); // The path to your employee data
-
-    let employees = []; // This will hold the live, synced data
-    let currentEmployeeList = []; 
-
-    // --- DATABASE SYNCHRONIZATION (Replaced Local Storage functions) ---
-
-    /**
-     * Listens for changes in Firebase and automatically updates the dashboard.
-     */
-    function startLiveSync() {
-        employeesRef.on('value', (snapshot) => {
-            const firebaseEmployees = snapshot.val();
-            if (firebaseEmployees) {
-                // Convert the Firebase object structure (with unique keys) into an array
-                employees = Object.keys(firebaseEmployees).map(key => ({
-                    dbId: key, // Store the Firebase unique key for updating/deleting
-                    // Generate a local ID for functions that still use the number ID (like delete/updateProperty)
-                    // Note: This is a simplified approach. Using dbId for everything is cleaner.
-                    id: Math.random(), 
-                    ...firebaseEmployees[key]
-                }));
-            } else {
-                employees = [];
-            }
-            
-            checkAndResetStatus();
-            filterEmployees();
-        });
-    }
-
-    /**
-     * Saves the current employee data back to Firebase.
-     */
-    function saveEmployeeToDatabase(employee) {
-         // Use update to save the employee object using its Firebase unique key (dbId)
-         database.ref('employees/' + employee.dbId).update(employee);
-    }
-
-    // --- NEW MEMBER MANAGEMENT FUNCTIONS (Updated for Firebase) ---
-
-    function generateId() {
-        // Not strictly needed with Firebase's push key, but useful for temporary local ID
-        return employees.length > 0 ? Math.max(...employees.map(e => e.id || 0)) + 1 : 1;
-    }
-
-    window.addEmployee = function() {
-        const newName = prompt("Enter the name of the new employee:", "New Member");
-        if (newName === null || newName.trim() === "") return;
-
-        const newEmployee = {
-            name: newName.trim(),
-            status: "OutOfOffice",
-            department: "Position/Role" 
+        // --- 2. FIREBASE CONFIGURATION (USING YOUR PROVIDED KEYS) ---
+        const firebaseConfig = {
+            apiKey: "AIzaSyAunAvViQgdP9M4tOIREWEIyw7unarsbzM",
+            authDomain: "ford-dashboard-fbf4f.firebaseapp.com",
+            databaseURL: "https://ford-dashboard-fbf4f-default-rtdb.firebaseio.com", 
+            projectId: "ford-dashboard-fbf4f",
+            storageBucket: "ford-dashboard-fbf4f.firebasestorage.app",
+            messagingSenderId: "1028394263264",
+            appId: "1:1028394263264:web:775d863a513edaade82685",
         };
-        
-        // Push the new object to the database, Firebase generates the unique key (dbId)
-        employeesRef.push(newEmployee);
-    }
 
-    window.deleteEmployee = function(employeeId) {
-        if (!confirm("Are you sure you want to delete this member?")) return;
-        
-        // Find the employee using the temporary local ID, then get its database ID (dbId)
-        const employee = employees.find(emp => emp.id === employeeId);
-        if (employee && employee.dbId) {
-             // Remove the entry from Firebase using its unique dbId
-             database.ref('employees/' + employee.dbId).remove();
+        // Initialize Firebase (V8 syntax for basic script blocks)
+        firebase.initializeApp(firebaseConfig);
+        const database = firebase.database();
+        const employeesRef = database.ref('employees'); // The path to your employee data
+
+        let employees = []; // This will hold the live, synced data
+        let currentEmployeeList = []; 
+
+        // --- DATABASE SYNCHRONIZATION ---
+
+        function startLiveSync() {
+            employeesRef.on('value', (snapshot) => {
+                const firebaseEmployees = snapshot.val();
+                if (firebaseEmployees) {
+                    // Convert the Firebase object structure (with unique keys) into an array
+                    employees = Object.keys(firebaseEmployees).map(key => ({
+                        dbId: key, 
+                        // Assign a temporary unique ID for array-based lookups and onclick handlers
+                        id: Math.random(), 
+                        ...firebaseEmployees[key]
+                    }));
+                } else {
+                    employees = [];
+                }
+                
+                checkAndResetStatus();
+                filterEmployees();
+            });
         }
-    }
 
-    window.updateProperty = function(employeeId, inputElement, property) {
-        const newValue = inputElement.value.trim();
-        const employee = employees.find(emp => emp.id === employeeId);
-        
-        if (employee) {
-            if (newValue === "") {
-                inputElement.value = employee[property];
-                return;
-            }
+        function saveEmployeeToDatabase(employee) {
+             // Use update to save the employee object using its Firebase unique key (dbId)
+             database.ref('employees/' + employee.dbId).update(employee);
+        }
+
+        // --- NEW MEMBER MANAGEMENT FUNCTIONS ---
+
+        window.addEmployee = function() {
+            const newName = prompt("Enter the name of the new employee:", "New Member");
+            if (newName === null || newName.trim() === "") return;
+
+            const newEmployee = {
+                name: newName.trim(),
+                status: "OutOfOffice",
+                department: "Position/Role" 
+            };
             
-            employee[property] = newValue;
+            // Push the new object to the database, Firebase generates the unique key (dbId)
+            employeesRef.push(newEmployee);
+        }
+
+        window.deleteEmployee = function(employeeId) {
+            if (!confirm("Are you sure you want to delete this member?")) return;
+            
+            // Find the employee using the temporary local ID, then get its database ID (dbId)
+            const employee = employees.find(emp => emp.id === employeeId);
+            if (employee && employee.dbId) {
+                 // Remove the entry from Firebase using its unique dbId
+                 database.ref('employees/' + employee.dbId).remove();
+            }
+        }
+
+        window.updateProperty = function(employeeId, inputElement, property) {
+            const newValue = inputElement.value.trim();
+            const employee = employees.find(emp => emp.id === employeeId);
+            
+            if (employee) {
+                if (newValue === "") {
+                    inputElement.value = employee[property];
+                    return;
+                }
+                
+                employee[property] = newValue;
+                
+                // Save updated employee object back to Firebase
+                saveEmployeeToDatabase(employee); 
+            }
+        }
+
+        // --- STATUS CYCLE FUNCTION ---
+        
+        window.cycleStatus = function(employeeId) {
+            const employee = employees.find(emp => emp.id === employeeId);
+            if (!employee) return;
+
+            const currentStatus = employee.status;
+            const currentIndex = STATUS_OPTIONS.indexOf(currentStatus);
+            const nextIndex = (currentIndex + 1) % STATUS_OPTIONS.length;
+            const newStatus = STATUS_OPTIONS[nextIndex];
+
+            employee.status = newStatus;
             
             // Save updated employee object back to Firebase
             saveEmployeeToDatabase(employee); 
         }
-    }
 
-    // --- STATUS CYCLE FUNCTION (Updated for Firebase) ---
-    
-    window.cycleStatus = function(employeeId) {
-        const employee = employees.find(emp => emp.id === employeeId);
-        if (!employee) return;
+        // --- DATE AND RESET LOGIC ---
 
-        const currentStatus = employee.status;
-        const currentIndex = STATUS_OPTIONS.indexOf(currentStatus);
-        const nextIndex = (currentIndex + 1) % STATUS_OPTIONS.length;
-        const newStatus = STATUS_OPTIONS[nextIndex];
-
-        employee.status = newStatus;
-        
-        // Save updated employee object back to Firebase
-        saveEmployeeToDatabase(employee); 
-    }
-
-    // --- DATE AND RESET LOGIC (Updated for Firebase Data) ---
-
-    function checkAndResetStatus() {
-        const today = new Date().toDateString();
-        const lastReset = localStorage.getItem(STORAGE_KEY_LAST_RESET);
-        
-        if (employees.length > 0 && (!lastReset || new Date(lastReset).toDateString() !== today)) {
-            console.log("Daily reset triggered: Statuses are being set to OutOfOffice.");
+        function checkAndResetStatus() {
+            const today = new Date().toDateString();
+            const lastReset = localStorage.getItem(STORAGE_KEY_LAST_RESET);
             
-            const updates = {};
-            employees.forEach(emp => {
-                // Ensure dbId exists before attempting to update
-                if (emp.dbId) {
-                    updates[emp.dbId + '/status'] = "OutOfOffice";
-                }
+            if (employees.length > 0 && (!lastReset || new Date(lastReset).toDateString() !== today)) {
+                console.log("Daily reset triggered: Statuses are being set to OutOfOffice.");
+                
+                const updates = {};
+                employees.forEach(emp => {
+                    if (emp.dbId) {
+                        updates[emp.dbId + '/status'] = "OutOfOffice";
+                    }
+                });
+                
+                // Perform a bulk update to Firebase
+                database.ref('employees').update(updates)
+                    .then(() => {
+                         localStorage.setItem(STORAGE_KEY_LAST_RESET, today);
+                    })
+                    .catch(error => {
+                        console.error("Firebase update failed:", error);
+                    });
+            }
+        }
+
+        function displayDate() {
+            const dateElement = document.getElementById('current-date');
+            const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+            dateElement.textContent = new Date().toLocaleDateString(undefined, options);
+        }
+
+        // --- CORE FUNCTIONALITY ---
+
+        function updateSummary() {
+             const counts = employees.reduce((acc, employee) => {
+                 const status = employee.status || 'OutOfOffice'; // Default status if missing
+                 acc[status] = (acc[status] || 0) + 1;
+                 return acc;
+             }, { InOffice: 0, Remote: 0, OutOfOffice: 0 }); // Initialize counts to 0
+
+             document.querySelector('#summary-in-office p').textContent = counts.InOffice;
+             document.querySelector('#summary-remote p').textContent = counts.Remote;
+             document.querySelector('#summary-out-of-office p').textContent = counts.OutOfOffice;
+         }
+
+
+        function renderEmployees() {
+            const listContainer = document.getElementById('employee-list');
+            listContainer.innerHTML = ''; 
+
+            currentEmployeeList.forEach(employee => {
+                const card = document.createElement('div');
+                card.className = 'employee-card';
+                card.setAttribute('data-id', employee.id); 
+
+                const formattedStatus = (employee.status || 'OutOfOffice').replace(/([A-Z])/g, ' $1').trim();
+
+                card.innerHTML = `
+                    <button class="delete-button" onclick="deleteEmployee(${employee.id})" title="Delete Member">
+                        &times;
+                    </button>
+                    <div class="card-header">
+                        <div class="employee-info">
+                            <input type="text" 
+                                class="editable-name" 
+                                value="${employee.name || ''}" 
+                                onblur="updateProperty(${employee.id}, this, 'name')" 
+                                onkeydown="if(event.key === 'Enter') this.blur()"
+                            />
+                            <input type="text" 
+                                class="editable-department" 
+                                value="${employee.department || ''}" 
+                                onblur="updateProperty(${employee.id}, this, 'department')" 
+                                onkeydown="if(event.key === 'Enter') this.blur()"
+                            />
+                        </div>
+                        <div class="status-badge status-${employee.status || 'OutOfOffice'}">
+                            ${formattedStatus}
+                        </div>
+                    </div>
+                    <button class="status-button" onclick="cycleStatus(${employee.id})">
+                        Change Status
+                    </button>
+                `;
+                listContainer.appendChild(card);
             });
             
-            // Perform a bulk update to Firebase
-            database.ref('employees').update(updates)
-                .then(() => {
-                     localStorage.setItem(STORAGE_KEY_LAST_RESET, today);
-                })
-                .catch(error => {
-                    console.error("Firebase update failed:", error);
-                });
+            updateSummary();
         }
-    }
 
-    function displayDate() {
-        const dateElement = document.getElementById('current-date');
-        const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
-        dateElement.textContent = new Date().toLocaleDateString(undefined, options);
-    }
+        function filterEmployees(reSort = true) {
+            const filterValue = document.getElementById('filter-status').value;
+            currentEmployeeList = [...employees];
 
-    // --- CORE FUNCTIONALITY (Modified to use dbId in render but local ID in onclick) ---
-
-    function renderEmployees() {
-        const listContainer = document.getElementById('employee-list');
-        listContainer.innerHTML = ''; 
-
-        currentEmployeeList.forEach(employee => {
-         const card = document.createElement('div');
-            card.className = 'employee-card';
-            // Use the temporary local 'id' for the data attribute since update/delete functions rely on it
-            card.setAttribute('data-id', employee.id); 
-
-            const formattedStatus = employee.status.replace(/([A-Z])/g, ' $1').trim();
-
-            card.innerHTML = `
-                <button class="delete-button" onclick="deleteEmployee(${employee.id})" title="Delete Member">
-                    &times;
-                </button>
-                <div class="card-header">
-                    <div class="employee-info">
-                        <input type="text" 
-                            class="editable-name" 
-                            value="${employee.name || ''}" 
-                            onblur="updateProperty(${employee.id}, this, 'name')" 
-                            onkeydown="if(event.key === 'Enter') this.blur()"
-                        />
-                        <input type="text" 
-                            class="editable-department" 
-                            value="${employee.department || ''}" 
-                            onblur="updateProperty(${employee.id}, this, 'department')" 
-                            onkeydown="if(event.key === 'Enter') this.blur()"
-                        />
-                    </div>
-                    <div class="status-badge status-${employee.status}">
-                        ${formattedStatus}
-                    </div>
-                </div>
-                <button class="status-button" onclick="cycleStatus(${employee.id})">
-                    Change Status
-                </button>
-            `;
-            listContainer.appendChild(card);
-        });
-        
-        updateSummary();
-    }
-
-    function filterEmployees(reSort = true) {
-        const filterValue = document.getElementById('filter-status').value;
-        currentEmployeeList = [...employees];
-
-        if (filterValue !== 'all') {
-            currentEmployeeList = currentEmployeeList.filter(emp => emp.status === filterValue);
+            if (filterValue !== 'all') {
+                currentEmployeeList = currentEmployeeList.filter(emp => emp.status === filterValue);
+            }
+            if (reSort) {
+                sortEmployees(false);
+            } else {
+                renderEmployees();
+            }
         }
-        if (reSort) {
-            sortEmployees(false);
-        } else {
+
+        function sortEmployees(resetFilter = true) {
+            const sortValue = document.getElementById('sort-by').value;
+
+            if (resetFilter) {
+                filterEmployees(false);
+            }
+
+            currentEmployeeList.sort((a, b) => {
+                const nameA = a.name || '';
+                const nameB = b.name || '';
+                const statusA = a.status || '';
+                const statusB = b.status || '';
+
+                switch (sortValue) {
+                    case 'nameAsc': return nameA.localeCompare(nameB);
+                    case 'nameDesc': return nameB.localeCompare(nameA);
+                    case 'statusAsc':
+                        if (statusA === statusB) { return nameA.localeCompare(nameB); }
+                        return statusA.localeCompare(statusB);
+                    default: return 0;
+                }
+            });
+
             renderEmployees();
         }
-    }
 
-    function sortEmployees(resetFilter = true) {
-        const sortValue = document.getElementById('sort-by').value;
-
-        if (resetFilter) {
-            filterEmployees(false);
-        }
-
-        currentEmployeeList.sort((a, b) => {
-            switch (sortValue) {
-                case 'nameAsc': return (a.name || '').localeCompare(b.name || '');
-                case 'nameDesc': return (b.name || '').localeCompare(a.name || '');
-                case 'statusAsc':
-                    if (a.status === b.status) { return (a.name || '').localeCompare(b.name || ''); }
-                    return (a.status || '').localeCompare(b.status || '');
-                default: return 0;
-            }
+        // --- INITIALIZATION ---
+        document.addEventListener('DOMContentLoaded', () => {
+            displayDate();
+            startLiveSync(); 
         });
-
-        renderEmployees();
-    }
-
-    // --- INITIALIZATION ---
-    document.addEventListener('DOMContentLoaded', () => {
-        // ** IMPORTANT: Add the Firebase SDK includes to the <head> section! **
-        // <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
-        // <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
-        displayDate();
-        startLiveSync(); 
-    });
-</script>
+    </script>
 </body>
 </html>
