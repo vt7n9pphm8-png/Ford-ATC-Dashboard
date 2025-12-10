@@ -113,7 +113,6 @@
             font-size: 2em;
         }
 
-        /* Summary Colors (Matching Status Colors) */
         .summary-in-office { background-color: var(--color-in-office); }
         .summary-remote { background-color: var(--color-remote); }
         .summary-out-of-office { background-color: var(--color-out-of-office); }
@@ -291,7 +290,7 @@
 
         <div id="dashboard-content">
             <div class="management-controls">
-                <button onclick="addEmployee()">➕ Add New Member</button> 
+                <button onclick="addEmployee()">➕ Add My Member Card</button> 
             </div>
             
             <div id="summary-bar">
@@ -371,7 +370,6 @@
                 return;
             }
 
-            // Use the Firebase Email/Password Sign-in method
             auth.signInWithEmailAndPassword(email, password)
                 .catch((error) => {
                     console.error("Login failed:", error.code, error.message);
@@ -413,7 +411,6 @@
                 authStatus.style.display = 'none';
                 dashboardContent.style.display = 'none'; // Hide dashboard
                 
-                // Clear the dashboard view if logged out
                 document.getElementById('employee-list').innerHTML = '';
             }
         }
@@ -423,7 +420,6 @@
         // ------------------------------------------------------------------
 
         function startLiveSync() {
-            // Check if listener is already attached to prevent duplication
             employeesRef.off('value'); 
             
             setTimeout(() => {
@@ -447,24 +443,34 @@
         }
 
         function saveEmployeeToDatabase(employee) {
+             // This function will fail silently if the current user is not authorized by the Firebase Rules
              database.ref('employees/' + employee.dbId).update(employee);
         }
 
+        // 💡 CRITICAL FIX: Add the current user's UID to the new employee record
         window.addEmployee = function() {
-            const newName = prompt("Enter the name of the new employee:", "New Member");
+            const newName = prompt("Enter your full name for the member card:", "My Name");
             if (newName === null || newName.trim() === "") return;
+
+            const currentUid = firebase.auth().currentUser ? firebase.auth().currentUser.uid : null;
+
+            if (!currentUid) {
+                alert("Error: Must be logged in to add a member card.");
+                return;
+            }
 
             const newEmployee = {
                 name: newName.trim(),
                 status: "OutOfOffice",
-                department: "Position/Role" 
+                department: "Role / Team",
+                uid: currentUid // <-- Assign the UID for self-service write permission
             };
             
             employeesRef.push(newEmployee);
         }
 
         window.deleteEmployee = function(employeeId) {
-            if (!confirm("Are you sure you want to delete this member?")) return;
+            if (!confirm("Are you sure you want to delete this member card?")) return;
             
             const employee = employees.find(emp => emp.id === employeeId);
             if (employee && employee.dbId) {
