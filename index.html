@@ -7,13 +7,16 @@
 
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-auth.js"></script> 
 
     <style>
+        /* (Style remains the same as before, no need to include here) */
+
         :root {
             --color-primary: #007bff;
-            --color-in-office: #28a745; /* Green */
-            --color-out-of-office: #dc3545; /* Red */
-            --color-remote: #ffc107; /* Yellow */
+            --color-in-office: #28a745; 
+            --color-out-of-office: #dc3545; 
+            --color-remote: #ffc107; 
             --color-text: #333;
             --color-bg-light: #f8f9fa;
         }
@@ -36,6 +39,32 @@
             color: var(--color-primary);
             margin-bottom: 10px;
         }
+        
+        #auth-area {
+            text-align: center;
+            margin-bottom: 20px;
+            padding: 10px;
+            background-color: #fff;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+        }
+        
+        #auth-area button {
+            padding: 10px 20px;
+            background-color: var(--color-primary);
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: background-color 0.3s;
+        }
+
+        #auth-area button:hover {
+            background-color: #0056b3;
+        }
+
+        /* The rest of the CSS remains the same... */
 
         #current-date {
             text-align: center;
@@ -45,6 +74,10 @@
             font-weight: 600;
         }
 
+        #dashboard-content {
+            display: none; /* Hide until authenticated */
+        }
+        
         /* --- Summary Card Styles --- */
         #summary-bar {
             display: grid;
@@ -241,45 +274,53 @@
         <h1>Office Status Dashboard 🏢</h1>
         <div id="current-date"></div>
         
-        <div class="management-controls">
-            <button onclick="addEmployee()">➕ Add New Member</button> 
-        </div>
-        
-        <div id="summary-bar">
-            <div id="summary-in-office" class="summary-card summary-in-office">
-                <h3>IN OFFICE</h3>
-                <p>0</p>
-            </div>
-            <div id="summary-remote" class="summary-card summary-remote">
-                <h3>REMOTE</h3>
-                <p>0</p>
-            </div>
-            <div id="summary-out-of-office" class="summary-card summary-out-of-office">
-                <h3>OUT OF OFFICE</h3>
-                <p>0</p>
-            </div>
-        </div>
-        <div class="controls">
-            <div>
-                <label for="filter-status">Filter by Status:</label>
-                <select id="filter-status">
-                    <option value="all">All Statuses</option>
-                    <option value="InOffice">In Office</option>
-                    <option value="OutOfOffice">Out of Office</option>
-                    <option value="Remote">Remote</option>
-                </select>
-            </div>
-            <div>
-                <label for="sort-by">Sort by:</label>
-                <select id="sort-by">
-                    <option value="nameAsc">Name (A-Z)</option>
-                    <option value="nameDesc">Name (Z-A)</option>
-                    <option value="statusAsc">Status</option>
-                </select>
-            </div>
+        <div id="auth-area">
+            <button id="login-button" onclick="loginUser()">Login to Access Dashboard</button>
+            <span id="auth-status" style="display:none; font-weight: bold; color: var(--color-in-office);">Authenticated</span>
+            <button id="logout-button" style="display:none;" onclick="logoutUser()">Logout</button>
         </div>
 
-        <div id="employee-list">
+        <div id="dashboard-content">
+            <div class="management-controls">
+                <button onclick="addEmployee()">➕ Add New Member</button> 
+            </div>
+            
+            <div id="summary-bar">
+                <div id="summary-in-office" class="summary-card summary-in-office">
+                    <h3>IN OFFICE</h3>
+                    <p>0</p>
+                </div>
+                <div id="summary-remote" class="summary-card summary-remote">
+                    <h3>REMOTE</h3>
+                    <p>0</p>
+                </div>
+                <div id="summary-out-of-office" class="summary-card summary-out-of-office">
+                    <h3>OUT OF OFFICE</h3>
+                    <p>0</p>
+                </div>
+            </div>
+            <div class="controls">
+                <div>
+                    <label for="filter-status">Filter by Status:</label>
+                    <select id="filter-status">
+                        <option value="all">All Statuses</option>
+                        <option value="InOffice">In Office</option>
+                        <option value="OutOfOffice">Out of Office</option>
+                        <option value="Remote">Remote</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="sort-by">Sort by:</label>
+                    <select id="sort-by">
+                        <option value="nameAsc">Name (A-Z)</option>
+                        <option value="nameDesc">Name (Z-A)</option>
+                        <option value="statusAsc">Status</option>
+                    </select>
+                </div>
+            </div>
+
+            <div id="employee-list">
+            </div>
         </div>
     </div>
 
@@ -292,8 +333,6 @@
         const firebaseConfig = {
             apiKey: "AIzaSyAunAvViQgdP9M4tOIREWEIyw7unarsbzM",
             authDomain: "ford-dashboard-fbf4f.firebaseapp.com",
-            // 💡 CRITICAL FIX: The database URL is updated to the region-specific endpoint 
-            // to resolve the console warning and ensure reliable communication.
             databaseURL: "https://ford-dashboard-fbf4f-default-rtdb.asia-southeast1.firebasedatabase.app", 
             projectId: "ford-dashboard-fbf4f",
             storageBucket: "ford-dashboard-fbf4f.firebasestorage.app",
@@ -301,27 +340,70 @@
             appId: "1:1028394263264:web:775d863a513edaade82685",
         };
 
-        // Initialize Firebase (V8 syntax for basic script blocks)
+        // Initialize Firebase
         firebase.initializeApp(firebaseConfig);
+        const auth = firebase.auth(); // Initialize Auth Service
         const database = firebase.database();
-        const employeesRef = database.ref('employees'); // The path to your employee data
+        const employeesRef = database.ref('employees'); 
 
-        let employees = []; // This will hold the live, synced data
+        let employees = []; 
         let currentEmployeeList = []; 
 
-        // --- DATABASE SYNCHRONIZATION (Robust Version) ---
+        // ------------------------------------------------------------------
+        // --- AUTHENTICATION FUNCTIONS ---
+        // ------------------------------------------------------------------
+
+        window.loginUser = function() {
+            auth.signInAnonymously()
+                .catch((error) => {
+                    console.error("Anonymous Sign-in failed:", error.code, error.message);
+                    alert("Authentication failed. Check console for details.");
+                });
+        };
+
+        window.logoutUser = function() {
+            auth.signOut();
+        };
+
+        function updateAuthUI(user) {
+            const loginButton = document.getElementById('login-button');
+            const logoutButton = document.getElementById('logout-button');
+            const authStatus = document.getElementById('auth-status');
+            const dashboardContent = document.getElementById('dashboard-content');
+
+            if (user) {
+                // User is signed in (authenticated)
+                loginButton.style.display = 'none';
+                logoutButton.style.display = 'inline-block';
+                authStatus.style.display = 'inline-block';
+                dashboardContent.style.display = 'block'; // Show dashboard
+                // Since the user is logged in, start syncing data
+                startLiveSync();
+            } else {
+                // User is signed out (unauthenticated)
+                loginButton.style.display = 'inline-block';
+                logoutButton.style.display = 'none';
+                authStatus.style.display = 'none';
+                dashboardContent.style.display = 'none'; // Hide dashboard
+                
+                // Clear the dashboard view if logged out
+                document.getElementById('employee-list').innerHTML = '';
+            }
+        }
+
+        // ------------------------------------------------------------------
+        // --- DASHBOARD FUNCTIONS (Executed ONLY AFTER AUTH) ---
+        // ------------------------------------------------------------------
 
         function startLiveSync() {
-            // Added a brief timeout to ensure Firebase initialization completes
+            // Check if listener is already attached to prevent duplication
+            employeesRef.off('value'); 
+            
             setTimeout(() => {
                 employeesRef.on('value', (snapshot) => {
                     const firebaseEmployees = snapshot.val();
                     
-                    // console.log("--- Firebase Snapshot Received ---");
-                    // console.log("Raw Data:", firebaseEmployees); 
-
                     if (firebaseEmployees) {
-                        // We map the object to an array of employee objects
                         employees = Object.entries(firebaseEmployees).map(([key, value]) => ({
                             dbId: key, 
                             id: Math.random(), 
@@ -331,19 +413,19 @@
                         employees = [];
                     }
                     
-                    // console.log("Processed Employees Array:", employees); 
-
                     checkAndResetStatus();
                     filterEmployees();
                 });
-            }, 500); // Wait 500 milliseconds
+            }, 500); 
         }
+
+        // (The rest of your existing functions remain the same)
+        // You do not need to wrap these in auth checks, as they are only called
+        // after the user is authenticated (i.e., when startLiveSync runs)
 
         function saveEmployeeToDatabase(employee) {
              database.ref('employees/' + employee.dbId).update(employee);
         }
-
-        // --- NEW MEMBER MANAGEMENT FUNCTIONS ---
 
         window.addEmployee = function() {
             const newName = prompt("Enter the name of the new employee:", "New Member");
@@ -395,7 +477,6 @@
             saveEmployeeToDatabase(employee); 
         }
 
-        // --- DATE AND RESET LOGIC (Unchanged) ---
         function checkAndResetStatus() {
             const today = new Date().toDateString();
             const lastReset = localStorage.getItem(STORAGE_KEY_LAST_RESET);
@@ -426,8 +507,6 @@
             dateElement.textContent = new Date().toLocaleDateString(undefined, options);
         }
 
-        // --- CORE FUNCTIONALITY (Updated renderEmployees for CSP) ---
-
         function updateSummary() {
              const counts = employees.reduce((acc, employee) => {
                  const status = employee.status || 'OutOfOffice'; 
@@ -445,7 +524,6 @@
             listContainer.innerHTML = ''; 
 
             currentEmployeeList.forEach(employee => {
-                // Defensive check to ensure we only render valid objects
                 if (!employee || !employee.id || !employee.name) {
                     console.warn("Skipping invalid employee entry:", employee);
                     return; 
@@ -460,7 +538,6 @@
                 const department = employee.department || 'Unknown Dept.';
                 const formattedStatus = status.replace(/([A-Z])/g, ' $1').trim();
 
-                // 1. Create the HTML Structure (NO inline event handlers like onclick)
                 card.innerHTML = `
                     <button class="delete-button" data-action="delete" title="Delete Member">
                         &times;
@@ -488,8 +565,6 @@
                 `;
                 listContainer.appendChild(card);
 
-
-                // 2. ATTACH EVENT LISTENERS (CSP-compliant binding)
 
                 card.querySelector('.delete-button').addEventListener('click', () => {
                     deleteEmployee(employee.id);
@@ -558,7 +633,6 @@
             renderEmployees();
         }
 
-        // --- NEW CONTROL LISTENER ATTACHMENT FUNCTION ---
         function attachControlListeners() {
             document.getElementById('filter-status').addEventListener('change', filterEmployees);
             document.getElementById('sort-by').addEventListener('change', sortEmployees);
@@ -569,7 +643,9 @@
         document.addEventListener('DOMContentLoaded', () => {
             displayDate();
             attachControlListeners(); 
-            startLiveSync(); 
+            
+            // Listen for changes in authentication state
+            auth.onAuthStateChanged(updateAuthUI);
         });
     </script>
 </body>
