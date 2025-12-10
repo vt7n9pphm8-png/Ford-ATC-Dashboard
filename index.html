@@ -442,7 +442,7 @@
              document.querySelector('#summary-out-of-office p').textContent = counts.OutOfOffice;
          }
 
-
+        // 🎯 UPDATED RENDER FUNCTION: Now uses addEventListener for CSP compliance
         function renderEmployees() {
             const listContainer = document.getElementById('employee-list');
             listContainer.innerHTML = ''; 
@@ -454,8 +454,9 @@
 
                 const formattedStatus = (employee.status || 'OutOfOffice').replace(/([A-Z])/g, ' $1').trim();
 
+                // 1. Create the HTML Structure (WITHOUT inline event handlers)
                 card.innerHTML = `
-                    <button class="delete-button" onclick="deleteEmployee(${employee.id})" title="Delete Member">
+                    <button class="delete-button" data-action="delete" title="Delete Member">
                         &times;
                     </button>
                     <div class="card-header">
@@ -463,25 +464,54 @@
                             <input type="text" 
                                 class="editable-name" 
                                 value="${employee.name || ''}" 
-                                onblur="updateProperty(${employee.id}, this, 'name')" 
-                                onkeydown="if(event.key === 'Enter') this.blur()"
+                                data-prop="name"
                             />
                             <input type="text" 
                                 class="editable-department" 
                                 value="${employee.department || ''}" 
-                                onblur="updateProperty(${employee.id}, this, 'department')" 
-                                onkeydown="if(event.key === 'Enter') this.blur()"
+                                data-prop="department"
                             />
                         </div>
                         <div class="status-badge status-${employee.status || 'OutOfOffice'}">
                             ${formattedStatus}
                         </div>
                     </div>
-                    <button class="status-button" onclick="cycleStatus(${employee.id})">
+                    <button class="status-button" data-action="cycle">
                         Change Status
                     </button>
                 `;
                 listContainer.appendChild(card);
+
+
+                // 2. ATTACH EVENT LISTENERS (CSP-compliant method)
+
+                // Delete button listener
+                card.querySelector('.delete-button').addEventListener('click', () => {
+                    deleteEmployee(employee.id);
+                });
+
+                // Status cycle listener
+                card.querySelector('.status-button').addEventListener('click', () => {
+                    cycleStatus(employee.id);
+                });
+
+                // Name and Department input listeners
+                const inputs = card.querySelectorAll('.editable-name, .editable-department');
+                inputs.forEach(input => {
+                    const property = input.getAttribute('data-prop');
+                    
+                    // On blur (focus lost), update the property
+                    input.addEventListener('blur', () => {
+                        updateProperty(employee.id, input, property);
+                    });
+
+                    // On Enter key press, treat it like blur
+                    input.addEventListener('keydown', (event) => {
+                        if (event.key === 'Enter') {
+                            input.blur();
+                        }
+                    });
+                });
             });
             
             updateSummary();
