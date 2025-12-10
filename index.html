@@ -10,8 +10,6 @@
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-auth.js"></script> 
 
     <style>
-        /* (Style remains the same as before, no need to include here) */
-
         :root {
             --color-primary: #007bff;
             --color-in-office: #28a745; 
@@ -49,6 +47,15 @@
             box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
         }
         
+        #auth-area input {
+            padding: 10px;
+            margin-right: 10px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            width: 200px;
+            box-sizing: border-box;
+        }
+
         #auth-area button {
             padding: 10px 20px;
             background-color: var(--color-primary);
@@ -63,8 +70,6 @@
         #auth-area button:hover {
             background-color: #0056b3;
         }
-
-        /* The rest of the CSS remains the same... */
 
         #current-date {
             text-align: center;
@@ -264,7 +269,7 @@
             .controls { flex-direction: column; align-items: stretch; }
             .management-controls { flex-direction: column; }
             .management-controls button { width: 100%; }
-            #summary-bar { grid-template-columns: 1fr; } /* Stack summary cards on mobile */
+            #summary-bar { grid-template-columns: 1fr; } 
         }
     </style>
 </head>
@@ -275,7 +280,11 @@
         <div id="current-date"></div>
         
         <div id="auth-area">
+            <input type="email" id="login-email" placeholder="Authorized Email" />
+            <input type="password" id="login-password" placeholder="Password" />
+
             <button id="login-button" onclick="loginUser()">Login to Access Dashboard</button>
+            
             <span id="auth-status" style="display:none; font-weight: bold; color: var(--color-in-office);">Authenticated</span>
             <button id="logout-button" style="display:none;" onclick="logoutUser()">Logout</button>
         </div>
@@ -329,7 +338,7 @@
         const STATUS_OPTIONS = ["InOffice", "Remote", "OutOfOffice"];
         const STORAGE_KEY_LAST_RESET = 'lastResetDate'; 
 
-        // --- 2. FIREBASE CONFIGURATION (WITH FIXED REGION URL) ---
+        // --- 2. FIREBASE CONFIGURATION (FIXED REGION URL) ---
         const firebaseConfig = {
             apiKey: "AIzaSyAunAvViQgdP9M4tOIREWEIyw7unarsbzM",
             authDomain: "ford-dashboard-fbf4f.firebaseapp.com",
@@ -342,7 +351,7 @@
 
         // Initialize Firebase
         firebase.initializeApp(firebaseConfig);
-        const auth = firebase.auth(); // Initialize Auth Service
+        const auth = firebase.auth(); 
         const database = firebase.database();
         const employeesRef = database.ref('employees'); 
 
@@ -350,14 +359,23 @@
         let currentEmployeeList = []; 
 
         // ------------------------------------------------------------------
-        // --- AUTHENTICATION FUNCTIONS ---
+        // --- AUTHENTICATION FUNCTIONS (Email/Password) ---
         // ------------------------------------------------------------------
 
         window.loginUser = function() {
-            auth.signInAnonymously()
+            const email = document.getElementById('login-email').value;
+            const password = document.getElementById('login-password').value;
+
+            if (!email || !password) {
+                alert("Please enter both email and password.");
+                return;
+            }
+
+            // Use the Firebase Email/Password Sign-in method
+            auth.signInWithEmailAndPassword(email, password)
                 .catch((error) => {
-                    console.error("Anonymous Sign-in failed:", error.code, error.message);
-                    alert("Authentication failed. Check console for details.");
+                    console.error("Login failed:", error.code, error.message);
+                    alert("Login failed. Check your email and password.");
                 });
         };
 
@@ -370,18 +388,27 @@
             const logoutButton = document.getElementById('logout-button');
             const authStatus = document.getElementById('auth-status');
             const dashboardContent = document.getElementById('dashboard-content');
+            const loginEmail = document.getElementById('login-email');
+            const loginPassword = document.getElementById('login-password');
+
 
             if (user) {
                 // User is signed in (authenticated)
                 loginButton.style.display = 'none';
+                loginEmail.style.display = 'none';
+                loginPassword.style.display = 'none';
+
                 logoutButton.style.display = 'inline-block';
                 authStatus.style.display = 'inline-block';
                 dashboardContent.style.display = 'block'; // Show dashboard
-                // Since the user is logged in, start syncing data
+                
                 startLiveSync();
             } else {
                 // User is signed out (unauthenticated)
                 loginButton.style.display = 'inline-block';
+                loginEmail.style.display = 'inline-block';
+                loginPassword.style.display = 'inline-block';
+
                 logoutButton.style.display = 'none';
                 authStatus.style.display = 'none';
                 dashboardContent.style.display = 'none'; // Hide dashboard
@@ -418,10 +445,6 @@
                 });
             }, 500); 
         }
-
-        // (The rest of your existing functions remain the same)
-        // You do not need to wrap these in auth checks, as they are only called
-        // after the user is authenticated (i.e., when startLiveSync runs)
 
         function saveEmployeeToDatabase(employee) {
              database.ref('employees/' + employee.dbId).update(employee);
