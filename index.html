@@ -288,16 +288,17 @@
         const STATUS_OPTIONS = ["InOffice", "Remote", "OutOfOffice"];
         const STORAGE_KEY_LAST_RESET = 'lastResetDate'; 
 
-        // --- 2. FIREBASE CONFIGURATION (USING YOUR PROVIDED KEYS) ---
-        const firebaseConfig = {
-            apiKey: "AIzaSyAunAvViQgdP9M4tOIREWEIyw7unarsbzM",
-            authDomain: "ford-dashboard-fbf4f.firebaseapp.com",
-            databaseURL: "https://ford-dashboard-fbf4f-default-rtdb.firebaseio.com", 
-            projectId: "ford-dashboard-fbf4f",
-            storageBucket: "ford-dashboard-fbf4f.firebasestorage.app",
-            messagingSenderId: "1028394263264",
-            appId: "1:1028394263264:web:775d863a513edaade82685",
-        };
+// --- 2. FIREBASE CONFIGURATION ---
+const firebaseConfig = {
+    apiKey: "AIzaSyAunAvViQgdP9M4tOIREWEIyw7unarsbzM",
+    authDomain: "ford-dashboard-fbf4f.firebaseapp.com",
+    // 💡 CRITICAL FIX: UPDATE THIS URL 💡
+    databaseURL: "https://ford-dashboard-fbf4f-default-rtdb.asia-southeast1.firebasedatabase.app", 
+    projectId: "ford-dashboard-fbf4f",
+    storageBucket: "ford-dashboard-fbf4f.firebasestorage.app",
+    messagingSenderId: "1028394263264",
+    appId: "1:1028394263264:web:775d863a513edaade82685",
+};
 
         // Initialize Firebase (V8 syntax for basic script blocks)
         firebase.initializeApp(firebaseConfig);
