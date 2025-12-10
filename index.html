@@ -284,6 +284,30 @@
         const STATUS_OPTIONS = ["InOffice", "Remote", "OutOfOffice"];
         const STORAGE_KEY_EMPLOYEES = 'employeeStatusData';
         const STORAGE_KEY_LAST_RESET = 'lastResetDate';
+        // Import the functions you need from the SDKs you need
+        // --- 2. FIREBASE CONFIGURATION (REPLACE WITH YOUR KEYS HERE) ---
+        // ----------------------------------------------------------------------------------
+        // *** START REPLACEMENT BLOCK ***
+import { initializeApp } from "firebase/app";
+import { getAnalytics } from "firebase/analytics";
+// TODO: Add SDKs for Firebase products that you want to use
+// https://firebase.google.com/docs/web/setup#available-libraries
+
+// Your web app's Firebase configuration
+// For Firebase JS SDK v7.20.0 and later, measurementId is optional
+const firebaseConfig = {
+  apiKey: "AIzaSyAunAvViQgdP9M4tOIREWEIyw7unarsbzM",
+  authDomain: "ford-dashboard-fbf4f.firebaseapp.com",
+  projectId: "ford-dashboard-fbf4f",
+  storageBucket: "ford-dashboard-fbf4f.firebasestorage.app",
+  messagingSenderId: "1028394263264",
+  appId: "1:1028394263264:web:775d863a513edaade82685",
+  measurementId: "G-MD98SR0FX0"
+};
+
+// Initialize Firebase
+const app = initializeApp(firebaseConfig);
+const analytics = getAnalytics(app);
 
         const DEFAULT_EMPLOYEES = [
             { id: 1, name: "Alice Johnson", status: "OutOfOffice", department: "Lead Developer" },
