@@ -337,7 +337,7 @@
         const STATUS_OPTIONS = ["InOffice", "Remote", "OutOfOffice"];
         const STORAGE_KEY_LAST_RESET = 'lastResetDate'; 
 
-        // --- 2. FIREBASE CONFIGURATION (FIXED REGION URL) ---
+        // --- 2. FIREBASE CONFIGURATION ---
         const firebaseConfig = {
             apiKey: "AIzaSyAunAvViQgdP9M4tOIREWEIyw7unarsbzM",
             authDomain: "ford-dashboard-fbf4f.firebaseapp.com",
@@ -391,25 +391,23 @@
 
 
             if (user) {
-                // User is signed in (authenticated)
                 loginButton.style.display = 'none';
                 loginEmail.style.display = 'none';
                 loginPassword.style.display = 'none';
 
                 logoutButton.style.display = 'inline-block';
                 authStatus.style.display = 'inline-block';
-                dashboardContent.style.display = 'block'; // Show dashboard
+                dashboardContent.style.display = 'block'; 
                 
                 startLiveSync();
             } else {
-                // User is signed out (unauthenticated)
                 loginButton.style.display = 'inline-block';
                 loginEmail.style.display = 'inline-block';
                 loginPassword.style.display = 'inline-block';
 
                 logoutButton.style.display = 'none';
                 authStatus.style.display = 'none';
-                dashboardContent.style.display = 'none'; // Hide dashboard
+                dashboardContent.style.display = 'none'; 
                 
                 document.getElementById('employee-list').innerHTML = '';
             }
@@ -443,11 +441,9 @@
         }
 
         function saveEmployeeToDatabase(employee) {
-             // This function will fail silently if the current user is not authorized by the Firebase Rules
              database.ref('employees/' + employee.dbId).update(employee);
         }
 
-        // 💡 CRITICAL FIX: Add the current user's UID to the new employee record
         window.addEmployee = function() {
             const newName = prompt("Enter your full name for the member card:", "My Name");
             if (newName === null || newName.trim() === "") return;
@@ -463,7 +459,7 @@
                 name: newName.trim(),
                 status: "OutOfOffice",
                 department: "Role / Team",
-                uid: currentUid // <-- Assign the UID for self-service write permission
+                uid: currentUid 
             };
             
             employeesRef.push(newEmployee);
@@ -493,18 +489,32 @@
             }
         }
         
+        // 💡 UPDATED: This function now includes and saves the timestamp
         window.cycleStatus = function(employeeId) {
             const employee = employees.find(emp => emp.id === employeeId);
             if (!employee) return;
 
+            // 1. Determine the next status
             const currentStatus = employee.status;
             const currentIndex = STATUS_OPTIONS.indexOf(currentStatus);
             const nextIndex = (currentIndex + 1) % STATUS_OPTIONS.length;
             const newStatus = STATUS_OPTIONS[nextIndex];
 
+            // 2. Capture the current date and time
+            const now = new Date();
+            const timeString = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            const dateString = now.toLocaleDateString([], { month: 'short', day: 'numeric' });
+            
+            // Combine for display
+            const newTimestamp = `${dateString} at ${timeString}`; 
+
+            // 3. Update the employee object
             employee.status = newStatus;
+            employee.lastUpdated = newTimestamp; // <-- NEW: Add the timestamp property
+
+            // 4. Save to the database
             saveEmployeeToDatabase(employee); 
-        }
+        };
 
         function checkAndResetStatus() {
             const today = new Date().toDateString();
@@ -517,6 +527,8 @@
                 employees.forEach(emp => {
                     if (emp.dbId) {
                         updates[emp.dbId + '/status'] = "OutOfOffice";
+                        // Optionally reset lastUpdated here too
+                        updates[emp.dbId + '/lastUpdated'] = 'Reset Daily';
                     }
                 });
                 
@@ -566,6 +578,9 @@
                 const name = employee.name || 'Unknown Name';
                 const department = employee.department || 'Unknown Dept.';
                 const formattedStatus = status.replace(/([A-Z])/g, ' $1').trim();
+                
+                // 💡 NEW: Retrieve the timestamp, or display a default message
+                const lastUpdatedTime = employee.lastUpdated || 'Status never updated';
 
                 card.innerHTML = `
                     <button class="delete-button" data-action="delete" title="Delete Member">
@@ -588,6 +603,11 @@
                             ${formattedStatus}
                         </div>
                     </div>
+                    
+                    <div style="font-size: 0.8em; color: #777; margin-top: -5px;">
+                        Last Updated: ${lastUpdatedTime}
+                    </div>
+
                     <button class="status-button" data-action="cycle">
                         Change Status
                     </button>
@@ -673,7 +693,6 @@
             displayDate();
             attachControlListeners(); 
             
-            // Listen for changes in authentication state
             auth.onAuthStateChanged(updateAuthUI);
         });
     </script>
