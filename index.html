@@ -193,7 +193,7 @@
             align-items: flex-start;
         }
 
-        .editable-name, .editable-department {
+        .editable-name, .editable-department, .editable-role {
             outline: none;
             border: none;
             border-bottom: 2px solid transparent;
@@ -214,8 +214,16 @@
             font-size: 0.9em;
             padding: 2px 0; 
         }
+
+        .editable-role {
+            color: #444;
+            font-size: 0.9em;
+            padding: 2px 0;
+        }
         
-        .editable-name:focus, .editable-department:focus {
+        .editable-name:focus,
+        .editable-department:focus,
+        .editable-role:focus {
             border-bottom-color: var(--color-primary);
         }
 
@@ -262,6 +270,36 @@
             padding: 5px;
             line-height: 1;
         }
+
+        /* Role badge row */
+        .role-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-top: 4px;
+        }
+
+        .role-badge {
+            display: inline-flex;
+            align-items: center;
+            padding: 4px 10px;
+            border-radius: 999px;
+            font-size: 0.8em;
+            font-weight: 600;
+            color: #fff;
+            white-space: nowrap;
+        }
+
+        .role-icon {
+            margin-right: 4px;
+        }
+
+        .role-badge-manager { background-color: #6f42c1; }   /* purple */
+        .role-badge-engineer { background-color: #17a2b8; }  /* teal */
+        .role-badge-lead { background-color: #fd7e14; }      /* orange */
+        .role-badge-intern { background-color: #20c997; }    /* green */
+        .role-badge-admin { background-color: #343a40; }     /* dark */
+        .role-badge-generic { background-color: #6c757d; }   /* grey */
 
         /* --- Responsive Adjustments --- */
         @media (max-width: 600px) {
@@ -321,6 +359,12 @@
                     </select>
                 </div>
                 <div>
+                    <label for="filter-role">Filter by Role:</label>
+                    <select id="filter-role">
+                        <option value="all">All Roles</option>
+                    </select>
+                </div>
+                <div>
                     <label for="sort-by">Sort by:</label>
                     <select id="sort-by">
                         <option value="nameAsc">Name (A-Z)</option>
@@ -336,7 +380,7 @@
 
     <script>
         /*
-         * IMPORTANT: Set your Realtime Database rules like this (conceptually):
+         * IMPORTANT: Example Realtime Database rules to match this front-end:
          *
          * {
          *   "rules": {
@@ -344,21 +388,28 @@
          *       ".read": "auth != null",
          *       "$employeeId": {
          *         ".write": "auth != null && (
+         *           // Admin can do anything
          *           root.child('config/admin/' + auth.uid).val() === true ||
+         *           // Non-admin can ONLY update status/lastUpdated of OWN card
          *           (
          *             data.exists() &&
          *             data.child('uid').val() === auth.uid &&
          *             newData.child('name').val() === data.child('name').val() &&
          *             newData.child('department').val() === data.child('department').val() &&
+         *             newData.child('role').val() === data.child('role').val() &&
          *             newData.child('uid').val() === data.child('uid').val()
          *           )
          *         )",
-         *         ".validate": "newData.hasChildren(['name','status','department','uid'])"
+         *         ".validate": "newData.hasChildren(['name','status','department','role','uid'])"
          *       }
          *     },
          *     "config": {
          *       ".read": "auth != null",
          *       ".write": "root.child('config/admin/' + auth.uid).val() === true"
+         *     },
+         *     "$other": {
+         *       '.read': false,
+         *       '.write': false
          *     }
          *   }
          * }
@@ -439,6 +490,29 @@
             }
         }
 
+        // --- ROLE ICON / BADGE LOGIC ---
+
+        function getRoleStyle(roleRaw) {
+            const role = (roleRaw || '').toLowerCase();
+
+            if (role.includes('manager')) {
+                return { badgeClass: 'role-badge-manager', icon: '🧑‍💼' };
+            }
+            if (role.includes('lead')) {
+                return { badgeClass: 'role-badge-lead', icon: '⭐' };
+            }
+            if (role.includes('engineer') || role.includes('eng')) {
+                return { badgeClass: 'role-badge-engineer', icon: '👨‍💻' };
+            }
+            if (role.includes('intern') || role.includes('trainee')) {
+                return { badgeClass: 'role-badge-intern', icon: '🧑‍🎓' };
+            }
+            if (role.includes('admin')) {
+                return { badgeClass: 'role-badge-admin', icon: '🛡️' };
+            }
+            return { badgeClass: 'role-badge-generic', icon: '👤' };
+        }
+
         // --- DASHBOARD / DATA SYNC ---
 
         function startLiveSync() {
@@ -451,28 +525,30 @@
                     employees = Object.entries(firebaseEmployees).map(([key, value]) => ({
                         dbId: key,
                         id: Math.random(), // local ID
-                        ...value
+                        ...value,
+                        role: value.role || ''
                     }));
                 } else {
                     employees = [];
                 }
 
-                // Only admin should attempt the daily reset
                 if (currentUserIsAdmin) {
                     checkAndResetStatus();
                 }
 
+                updateRoleFilterOptions();
                 filterEmployees();
             });
         }
 
         function saveEmployeeToDatabase(employee) {
-            const { dbId, name, status, department, uid, lastUpdated } = employee;
+            const { dbId, name, status, department, role, uid, lastUpdated } = employee;
 
             database.ref('employees/' + dbId).update({
                 name: name || '',
                 status: status || 'OutOfOffice',
                 department: department || '',
+                role: role || '',
                 uid: uid || '',
                 lastUpdated: lastUpdated || ''
             });
@@ -494,10 +570,13 @@
             const newName = prompt("Enter full name for the member card:", "New Member");
             if (newName === null || newName.trim() === "") return;
 
+            const newRole = prompt("Enter role (e.g. Engineer, Manager):", "Engineer") || "Member";
+
             const newEmployee = {
                 name: newName.trim(),
                 status: "OutOfOffice",
                 department: "Role / Team",
+                role: newRole.trim(),
                 uid: currentUser.uid
             };
 
@@ -525,15 +604,17 @@
             const currentUser = auth.currentUser;
 
             if (!employee || !currentUser) {
-                inputElement.value = employee ? employee[property] : '';
+                if (employee && property in employee) {
+                    inputElement.value = employee[property];
+                }
                 return;
             }
 
             const isOwner = employee.uid === currentUser.uid;
 
-            // Non-admin can NOT change name/department
-            if (!currentUserIsAdmin && (property === 'name' || property === 'department')) {
-                alert("Only admin can edit name/department.");
+            // Non-admin can NOT change name/department/role
+            if (!currentUserIsAdmin && (property === 'name' || property === 'department' || property === 'role')) {
+                alert("Only admin can edit name/department/role.");
                 inputElement.value = employee[property];
                 return;
             }
@@ -626,6 +707,33 @@
             document.querySelector('#summary-out-of-office p').textContent = counts.OutOfOffice;
         }
 
+        function updateRoleFilterOptions() {
+            const select = document.getElementById('filter-role');
+            if (!select) return;
+
+            const previousValue = select.value;
+            const rolesSet = new Set();
+
+            employees.forEach(emp => {
+                const r = (emp.role || '').trim();
+                if (r) rolesSet.add(r);
+            });
+
+            const roles = Array.from(rolesSet).sort((a, b) => a.localeCompare(b));
+
+            select.innerHTML = '<option value="all">All Roles</option>';
+            roles.forEach(role => {
+                const opt = document.createElement('option');
+                opt.value = role;
+                opt.textContent = role;
+                select.appendChild(opt);
+            });
+
+            if (roles.includes(previousValue) || previousValue === 'all') {
+                select.value = previousValue;
+            }
+        }
+
         function renderEmployees() {
             const listContainer = document.getElementById('employee-list');
             listContainer.innerHTML = '';
@@ -643,8 +751,18 @@
                 const status = employee.status || 'OutOfOffice';
                 const name = employee.name || 'Unknown Name';
                 const department = employee.department || 'Unknown Dept.';
+                const role = employee.role || 'Role';
                 const formattedStatus = status.replace(/([A-Z])/g, ' $1').trim();
                 const lastUpdatedTime = employee.lastUpdated || 'Status never updated';
+
+                const roleStyle = getRoleStyle(role);
+                const roleEditHtml = currentUserIsAdmin
+                    ? `<input type="text"
+                            class="editable-role"
+                            value="${role}"
+                            data-prop="role"
+                       />`
+                    : '';
 
                 card.innerHTML = `
                     <button class="delete-button" title="Delete Member">&times;</button>
@@ -660,6 +778,13 @@
                                 value="${department}"
                                 data-prop="department"
                             />
+                            <div class="role-row">
+                                <span class="role-badge ${roleStyle.badgeClass}">
+                                    <span class="role-icon">${roleStyle.icon}</span>
+                                    <span class="role-text">${role}</span>
+                                </span>
+                                ${roleEditHtml}
+                            </div>
                         </div>
                         <div class="status-badge status-${status}">
                             ${formattedStatus}
@@ -689,7 +814,7 @@
                     cycleStatus(employee.id);
                 });
 
-                const inputs = card.querySelectorAll('.editable-name, .editable-department');
+                const inputs = card.querySelectorAll('.editable-name, .editable-department, .editable-role');
                 inputs.forEach(input => {
                     const property = input.getAttribute('data-prop');
 
@@ -711,12 +836,22 @@
         }
 
         function filterEmployees(reSort = true) {
-            const filterValue = document.getElementById('filter-status').value;
+            const filterStatusValue = document.getElementById('filter-status').value;
+            const filterRoleValue = document.getElementById('filter-role').value;
+
             currentEmployeeList = [...employees];
 
-            if (filterValue !== 'all') {
-                currentEmployeeList = currentEmployeeList.filter(emp => emp.status === filterValue);
+            if (filterStatusValue !== 'all') {
+                currentEmployeeList = currentEmployeeList.filter(emp => emp.status === filterStatusValue);
             }
+
+            if (filterRoleValue !== 'all') {
+                currentEmployeeList = currentEmployeeList.filter(emp => {
+                    const r = (emp.role || '').trim();
+                    return r === filterRoleValue;
+                });
+            }
+
             if (reSort) {
                 sortEmployees(false);
             } else {
@@ -751,8 +886,9 @@
         }
 
         function attachControlListeners() {
-            document.getElementById('filter-status').addEventListener('change', filterEmployees);
-            document.getElementById('sort-by').addEventListener('change', sortEmployees);
+            document.getElementById('filter-status').addEventListener('change', () => filterEmployees());
+            document.getElementById('filter-role').addEventListener('change', () => filterEmployees());
+            document.getElementById('sort-by').addEventListener('change', () => sortEmployees());
         }
 
         // --- INITIALIZATION ---
